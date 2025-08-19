@@ -68,7 +68,7 @@ export default function JobStatusPage() {
             <div className="mt-6 space-y-3">
               <button
                 className="w-full rounded-xl border border-gray-300 px-4 py-3 text-gray-800 hover:bg-gray-50 transition shadow-sm"
-                onClick={() => console.log('Yes — got a job')}
+                onClick={() => router.push('/cancel/job-success')} // ✅ go to Congrats screen
               >
                 Yes, I’ve found a job
               </button>
