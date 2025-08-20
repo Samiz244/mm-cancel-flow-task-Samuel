@@ -1,6 +1,6 @@
 // src/app/cancel/still-looking/page.tsx
 import Image from 'next/image';
-
+import Link from 'next/link';
 export default function StillLookingPage({
   searchParams,
 }: {
@@ -96,14 +96,16 @@ export default function StillLookingPage({
 
             {/* Promo + Continue section */}
             <div className="mt-6 space-y-3">
-              {showPromo && (
-                <button
-                  type="button"
-                  className="w-full rounded-xl bg-emerald-500 text-white py-2 text-sm font-semibold shadow-sm hover:brightness-95"
-                >
-                  Get $10 off | $15.00 / $25.00
-                </button>
-              )}
+            {showPromo && (
+  <div className="mt-4">
+    <Link
+      href="/cancel/downsell_accepted"
+      className="block w-full rounded-xl bg-emerald-500 text-white py-2 text-center text-sm font-semibold shadow-sm hover:brightness-95"
+    >
+      Get $10 off | $15.00 / $19.00
+    </Link>
+  </div>
+)}
               <button className="w-full rounded-xl bg-gray-100 text-gray-500 cursor-not-allowed py-3 text-sm font-medium">
                 Continue
               </button>

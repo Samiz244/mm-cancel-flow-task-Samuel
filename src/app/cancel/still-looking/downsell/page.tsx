@@ -69,14 +69,17 @@ export default function DownsellPage() {
 
                 {/* Secondary plan note */}
                 <div className="mt-1 text-center text-[11px] sm:text-xs text-purple-900/80">
-                  On $29 plan: <span className="font-medium">$19</span> <span className="text-gray-400 line-through">$29</span>
+                  On $29 plan: <span className="font-medium">$19</span>{' '}
+                  <span className="text-gray-400 line-through">$29</span>
                 </div>
 
                 {/* CTAs */}
                 <div className="mt-3 flex flex-col sm:flex-row gap-3">
+                  {/* ✅ Accept → confirmation page */}
                   <button
                     type="button"
                     className="flex-1 rounded-lg bg-emerald-500 text-white font-medium py-2 text-sm hover:brightness-95"
+                    onClick={() => router.push('/cancel/downsell_accepted')}
                   >
                     Get $10 off
                   </button>
