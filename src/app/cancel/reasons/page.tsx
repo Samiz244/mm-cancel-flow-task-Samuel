@@ -1,10 +1,10 @@
 // src/app/cancel/reasons/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 type ReasonKey =
   | 'too_expensive'
@@ -13,27 +13,96 @@ type ReasonKey =
   | 'decided_not_to_move'
   | 'other';
 
+// --- Simple sanitizers for XSS hardening ---
+function stripTags(input: string) {
+  return input.replace(/<\/?[^>]+(>|$)/g, '');
+}
+function removeDangerous(input: string) {
+  return input.replace(/javascript:|data:|vbscript:|on\w+=/gi, '');
+}
+function escapeHtml(input: string) {
+  return input
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+function sanitize(input: string) {
+  const normalized = input.replace(/\s+/g, ' ').trim();
+  return escapeHtml(removeDangerous(stripTags(normalized)));
+}
+
 export default function ReasonsPage() {
   const router = useRouter();
+  const sp = useSearchParams();
+
+  // Only show promo if we came from downsell
+  const showPromo = useMemo(() => sp.get('offer') === 'downsell', [sp]);
+
   const [reason, setReason] = useState<ReasonKey | null>(null);
   const [text, setText] = useState('');
+  const [csrf, setCsrf] = useState<string>('');
 
-  // Require a reason; for these reasons, also require a text input (>= 25 chars)
-  const requiresText =
-    reason === 'too_expensive' ||
-    reason === 'platform_not_helpful' ||
-    reason === 'not_enough_relevant' ||
-    reason === 'decided_not_to_move' ||
-    reason === 'other';
+  // Initialize CSRF-style token
+  useEffect(() => {
+    const key = 'mm_csrf_token';
+    let tok = sessionStorage.getItem(key);
+    if (!tok) {
+      tok = crypto.randomUUID();
+      sessionStorage.setItem(key, tok);
+    }
+    setCsrf(tok);
+  }, []);
 
-  const textValid = !requiresText || text.trim().length >= 25;
+  // Which reasons require text
+  const requiresText = useMemo(
+    () =>
+      reason === 'platform_not_helpful' ||
+      reason === 'not_enough_relevant' ||
+      reason === 'decided_not_to_move' ||
+      reason === 'other',
+    [reason]
+  );
+
+  // Validation
+  const trimmed = text.trim();
+  const hasAlnum = /[A-Za-z0-9]/.test(trimmed);
+
+  let textValid = true;
+  if (reason === 'too_expensive') {
+    textValid = /^\d+(\.\d{1,2})?$/.test(trimmed) && parseFloat(trimmed) > 0;
+  } else if (requiresText) {
+    textValid = trimmed.length >= 25 && hasAlnum;
+  }
+
+  const formValid = !!reason && textValid;
+
+  const handleComplete = () => {
+    if (!formValid) return;
+
+    const safeText = sanitize(trimmed);
+
+    const params = new URLSearchParams({
+      r: reason ?? '',
+      t: safeText,
+      csrf,
+    });
+
+    router.push(`/cancel/cancellation?${params.toString()}`);
+  };
 
   return (
     <main className="min-h-screen bg-[#bfbfbf]/35 flex items-center justify-center p-4">
       <div className="w-full max-w-5xl rounded-2xl bg-white shadow-xl ring-1 ring-black/5 overflow-hidden">
         {/* Header */}
         <div className="relative border-b px-4 sm:px-6 py-3 sm:py-4">
-          <span className="absolute left-3 top-3 sm:left-4 sm:top-3 text-xs sm:text-sm text-gray-600">‹ Back</span>
+          <span
+            onClick={() => router.back()}
+            className="absolute left-3 top-3 sm:left-4 sm:top-3 text-xs sm:text-sm text-gray-600 cursor-pointer"
+          >
+            ‹ Back
+          </span>
 
           <div className="flex items-center justify-center">
             <h2 className="text-[12px] sm:text-sm font-medium text-gray-800">
@@ -51,7 +120,12 @@ export default function ReasonsPage() {
             <span className="ml-2">Step 3 of 3</span>
           </div>
 
-          <span className="absolute right-3 top-2.5 sm:right-4 sm:top-3 rounded p-2 text-gray-500">✕</span>
+          <span
+            onClick={() => router.push('/')}
+            className="absolute right-3 top-2.5 sm:right-4 sm:top-3 rounded p-2 text-gray-500 cursor-pointer"
+          >
+            ✕
+          </span>
 
           {/* Progress (mobile) */}
           <div className="mt-2 flex items-center justify-center gap-3 md:hidden">
@@ -75,6 +149,7 @@ export default function ReasonsPage() {
               Please take a minute to let us know why:
             </p>
 
+            {/* Reasons */}
             <div className="mt-4 space-y-3">
               {(
                 [
@@ -98,22 +173,26 @@ export default function ReasonsPage() {
               ))}
             </div>
 
-            {/* Conditional inputs based on reason */}
+            {/* Conditional inputs */}
             {reason === 'too_expensive' && (
               <div className="mt-4">
                 <label className="block text-xs text-gray-600 mb-2">
                   What would be the maximum you’d be willing to pay?
                 </label>
                 <input
-                  type="text"
+                  type="number"
                   placeholder="$"
+                  inputMode="decimal"
+                  min={1}
+                  max={100000}
+                  step="0.01"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                 />
                 {!textValid && (
                   <p className="mt-1 text-[11px] text-red-500">
-                    Please enter at least 25 characters so we can understand your feedback.
+                    Please enter a valid positive number.
                   </p>
                 )}
               </div>
@@ -126,13 +205,14 @@ export default function ReasonsPage() {
                 </label>
                 <textarea
                   rows={4}
+                  maxLength={2000}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                 />
                 {!textValid && (
                   <p className="mt-1 text-[11px] text-red-500">
-                    Please enter at least 25 characters so we can understand your feedback.
+                    Please provide at least 25 characters with some real details.
                   </p>
                 )}
               </div>
@@ -145,13 +225,14 @@ export default function ReasonsPage() {
                 </label>
                 <textarea
                   rows={4}
+                  maxLength={2000}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                 />
                 {!textValid && (
                   <p className="mt-1 text-[11px] text-red-500">
-                    Please enter at least 25 characters so we can understand your feedback.
+                    Please provide at least 25 characters with some real details.
                   </p>
                 )}
               </div>
@@ -164,13 +245,14 @@ export default function ReasonsPage() {
                 </label>
                 <textarea
                   rows={4}
+                  maxLength={2000}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                 />
                 {!textValid && (
                   <p className="mt-1 text-[11px] text-red-500">
-                    Please enter at least 25 characters so we can understand your feedback.
+                    Please provide at least 25 characters with some real details.
                   </p>
                 )}
               </div>
@@ -183,13 +265,14 @@ export default function ReasonsPage() {
                 </label>
                 <textarea
                   rows={4}
+                  maxLength={2000}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                 />
                 {!textValid && (
                   <p className="mt-1 text-[11px] text-red-500">
-                    Please enter at least 25 characters so we can understand your feedback.
+                    Please provide at least 25 characters with some real details.
                   </p>
                 )}
               </div>
@@ -197,30 +280,31 @@ export default function ReasonsPage() {
 
             {/* CTA row */}
             <div className="mt-6 space-y-3">
-              {/* Optional downsell reminder */}
-              <Link
-                href="/cancel/downsell_accepted"
-                className="block w-full rounded-xl bg-emerald-500 text-white py-3 text-sm font-semibold text-center shadow-sm hover:brightness-95"
-              >
-                Get $10 off | $15.00 / $19.00
-              </Link>
+              {showPromo && (
+                <Link
+                  href="/cancel/downsell_accepted"
+                  className="block w-full rounded-xl bg-emerald-500 text-white py-3 text-sm font-semibold text-center shadow-sm hover:brightness-95"
+                >
+                  Get $10 off | $15.00 / $19.00
+                </Link>
+              )}
 
               <button
                 type="button"
-                disabled={!reason || !textValid}
+                disabled={!formValid}
                 className={`w-full rounded-xl py-3 text-sm font-semibold text-center ${
-                  !reason || !textValid
-                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                    : 'bg-gray-900 text-white hover:bg-black'
+                  formValid
+                    ? 'bg-gray-900 text-white hover:bg-black'
+                    : 'bg-gray-100 text-gray-500 cursor-not-allowed'
                 }`}
-                onClick={() => router.push('/cancel/cancellation')}
+                onClick={handleComplete}
               >
                 Complete cancellation
               </button>
             </div>
           </div>
 
-          {/* RIGHT: image (desktop only) */}
+          {/* RIGHT: image */}
           <div className="order-1 md:order-2 hidden md:block">
             <div className="relative w-full h-[360px] lg:h-[480px]">
               <Image
