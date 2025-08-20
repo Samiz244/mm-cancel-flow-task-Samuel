@@ -40,10 +40,11 @@ export default function JobSuccessPage() {
   const canContinue =
     !!foundWithMM && !!appliedCount && !!emailedCount && !!interviewCount;
 
+  // 🔁 UPDATED: pass Q1 answer to the next step via query param
   const goNext = () => {
     if (!canContinue) return;
-    // Stub: next step; we’ll replace with the real route later
-    router.push('/cancel/confirm');
+    const found = (foundWithMM || '').toLowerCase(); // "yes" or "no"
+    router.push(`/cancel/improvement?foundWithMM=${encodeURIComponent(found)}`);
   };
 
   return (
@@ -74,7 +75,7 @@ export default function JobSuccessPage() {
             ✕
           </button>
 
-          {/* Progress (visible on all sizes; we keep it centered under title) */}
+          {/* Progress */}
           <div className="mt-2 flex items-center justify-center gap-3">
             <div className="flex items-center gap-1">
               <span className="inline-block h-1.5 w-6 rounded-full bg-gray-900" />
@@ -176,10 +177,9 @@ export default function JobSuccessPage() {
 
           {/* RIGHT: image — hidden on mobile, shown on md+ */}
           <div className="order-2 hidden md:block">
-            {/* Give the image a real height so Next/Image fill works */}
             <div className="relative w-full h-[420px] lg:h-[520px]">
               <Image
-                src="/images/empire-state-compressed.jpg"   // ensure file lives in public/images
+                src="/images/empire-state-compressed.jpg"
                 alt="City skyline"
                 fill
                 sizes="(min-width: 1024px) 40vw, (min-width: 768px) 50vw, 100vw"

@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 type ReasonKey =
   | 'too_expensive'
@@ -13,10 +14,11 @@ type ReasonKey =
   | 'other';
 
 export default function ReasonsPage() {
+  const router = useRouter();
   const [reason, setReason] = useState<ReasonKey | null>(null);
   const [text, setText] = useState('');
 
-  // simple validation: require a reason, and if a textbox shows, require 25 chars
+  // Require a reason; for these reasons, also require a text input (>= 25 chars)
   const requiresText =
     reason === 'too_expensive' ||
     reason === 'platform_not_helpful' ||
@@ -39,7 +41,7 @@ export default function ReasonsPage() {
             </h2>
           </div>
 
-          {/* progress (desktop) */}
+          {/* Progress (desktop) */}
           <div className="hidden md:flex items-center gap-2 absolute right-14 top-3 text-xs text-gray-600">
             <div className="flex items-center gap-1">
               <span className="inline-block h-1.5 w-6 rounded-full bg-gray-900" />
@@ -51,7 +53,7 @@ export default function ReasonsPage() {
 
           <span className="absolute right-3 top-2.5 sm:right-4 sm:top-3 rounded p-2 text-gray-500">✕</span>
 
-          {/* progress (mobile) */}
+          {/* Progress (mobile) */}
           <div className="mt-2 flex items-center justify-center gap-3 md:hidden">
             <div className="flex items-center gap-1">
               <span className="inline-block h-1.5 w-6 rounded-full bg-gray-900" />
@@ -195,7 +197,7 @@ export default function ReasonsPage() {
 
             {/* CTA row */}
             <div className="mt-6 space-y-3">
-              {/* (Optional) downsell reminder button */}
+              {/* Optional downsell reminder */}
               <Link
                 href="/cancel/downsell_accepted"
                 className="block w-full rounded-xl bg-emerald-500 text-white py-3 text-sm font-semibold text-center shadow-sm hover:brightness-95"
@@ -211,7 +213,7 @@ export default function ReasonsPage() {
                     ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
                     : 'bg-gray-900 text-white hover:bg-black'
                 }`}
-                onClick={() => alert('Complete cancellation (stub)')}
+                onClick={() => router.push('/cancel/cancellation')}
               >
                 Complete cancellation
               </button>
