@@ -13,30 +13,37 @@ It collects data on whether users have found jobs, offers a downsell ($10 off), 
 
 ---
 
-## 📂 File Structure
+<details>
+  <summary><strong>File Structure</strong></summary>
 
-src/app/
-├── cancel/
-│   ├── cancellation/          # Initial cancellation page
-│   ├── job-status/            # “Have you found a job?” page
-│   ├── job-success/           # Flow when user has found a job
-│   ├── still-looking/         # Flow when user is still looking
-│   │   └── downsell/          # Downsell offer
-│   ├── downsell_accepted/     # Confirmation page for downsell
-│   ├── improvement/           # Feedback page
-│   ├── visa/                  # Immigration lawyer + visa info
-│   └── employed-cancellation/ # Final confirmation
-│
-└── api/
-├── profile/               # Fetch user + subscription profile
-├── cancel/                # Handle subscription cancellation
-├── accept/                # Accept downsell
-├── init/                  # Initialize cancellation session
-├── user_status/           # Update user status (employed, visa, lawyer)
-└── migrate_mate_status/   # Update migrate mate stats
+```text
+src/
+└── app/
+    ├── cancel/
+    │   ├── cancellation/
+    │   ├── job-status/
+    │   ├── job-success/
+    │   ├── still-looking/
+    │   ├── downsell/
+    │   ├── downsell_accepted/
+    │   ├── improvement/
+    │   ├── visa/
+    │   └── employed-cancellation/
+    └── api/
+        ├── profile/
+        ├── cancel/
+        ├── accept/
+        ├── init/
+        ├── user_status/
+        └── migrate_mate_status/
+lib/
+└── supabase.ts
+seed.sql
+.env.local
+README.md
+</details>
+```
 
-
----
 
 ## 🗄️ Database Schema
 
