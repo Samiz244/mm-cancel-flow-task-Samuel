@@ -12,11 +12,7 @@ It collects data on whether users have found jobs, offers a downsell ($10 off), 
 - **API Routes** for user, subscription, and cancellation management  
 
 ---
-
-<details>
-  <summary><strong>File Structure</strong></summary>
-
-```text
+## 📂 Project Structure
 src/
 └── app/
     ├── cancel/
@@ -41,8 +37,6 @@ lib/
 seed.sql
 .env.local
 README.md
-</details>
-```
 
 
 ## 🗄️ Database Schema
@@ -140,3 +134,25 @@ flowchart TD
 
   F --> G[Visa Page -> Update user_status (lawyer + visa type)]
   G --> H[Final Employed Cancellation Page]
+
+⚙️ How to Run it Locally
+
+# 1. Clone repository
+git clone https://github.com/your-username/cancellation-flow.git
+cd cancellation-flow
+
+# 2. Install dependencies
+npm install
+
+# 3. Create environment file
+cat > .env.local <<EOL
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+EOL
+
+# 4. Run database migrations + seed
+psql < seed.sql
+
+# 5. Start dev server
+npm run dev
