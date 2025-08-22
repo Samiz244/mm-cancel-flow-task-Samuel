@@ -41,8 +41,10 @@ lib/
 seed.sql
 .env.local
 README.md
-</details>
 ```
+
+</details>
+
 
 ## 🗄️ Database Schema
 
