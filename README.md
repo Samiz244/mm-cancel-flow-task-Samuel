@@ -13,6 +13,10 @@ It collects data on whether users have found jobs, offers a downsell ($10 off), 
 
 ---
 ## 📂 Project Structure
+<details>
+ 
+
+```text
 src/
 └── app/
     ├── cancel/
@@ -37,6 +41,8 @@ lib/
 seed.sql
 .env.local
 README.md
+</details>
+```
 
 
 ## 🗄️ Database Schema
