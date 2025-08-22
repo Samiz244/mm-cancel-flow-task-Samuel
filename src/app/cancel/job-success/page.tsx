@@ -1,8 +1,7 @@
-// src/app/cancel/job-success/page.tsx
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useMemo, useState } from 'react';
 
 type Choice = string | null;
 
@@ -29,21 +28,49 @@ function Pill({
 
 export default function JobSuccessPage() {
   const router = useRouter();
+  const sp = useSearchParams();
+
+  // carry the email through the flow (?email=...)
+  const email = useMemo(() => (sp.get('email') || '').trim().toLowerCase(), [sp]);
 
   // Selections
-  const [foundWithMM, setFoundWithMM] = useState<Choice>(null);
-  const [appliedCount, setAppliedCount] = useState<Choice>(null);
-  const [emailedCount, setEmailedCount] = useState<Choice>(null);
-  const [interviewCount, setInterviewCount] = useState<Choice>(null);
+  const [foundWithMM, setFoundWithMM] = useState<Choice>(null);   // "Yes" | "No"
+  const [appliedCount, setAppliedCount] = useState<Choice>(null); // "0" | "1–5" | "6–20" | "20+"
+  const [emailedCount, setEmailedCount] = useState<Choice>(null); // same buckets
+  const [interviewCount, setInterviewCount] = useState<Choice>(null); // same buckets
+
+  const [saving, setSaving] = useState(false);
 
   const canContinue =
     !!foundWithMM && !!appliedCount && !!emailedCount && !!interviewCount;
 
-  const goNext = () => {
-    if (!canContinue) return;
-    const found = (foundWithMM || '').toLowerCase(); // "yes" or "no"
-    router.push(`/cancel/improvement?foundWithMM=${encodeURIComponent(found)}`);
-  };
+  const goNext = useCallback(async () => {
+    if (!canContinue || saving) return;
+    setSaving(true);
+
+    try {
+      // Save answers to migrate_mate_status
+      if (email) {
+        await fetch('/api/migrate_mate_status', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            foundWithMM,     // "Yes" / "No" -> API maps to employed_through_mm boolean
+            appliedCount,    // bucket strings -> API maps to ints (max of bucket)
+            emailedCount,    // -> contacts_count
+            interviewCount,  // -> interviews_count
+          }),
+        }).catch(() => {});
+      }
+
+      const found = (foundWithMM || '').toLowerCase(); // "yes" or "no"
+      const qsEmail = email ? `&email=${encodeURIComponent(email)}` : '';
+      router.push(`/cancel/improvement?foundWithMM=${encodeURIComponent(found)}${qsEmail}`);
+    } finally {
+      setSaving(false);
+    }
+  }, [canContinue, saving, email, foundWithMM, appliedCount, emailedCount, interviewCount, router]);
 
   // NOTE: layout provides header, progress (Step 1), and right image.
   return (
@@ -124,11 +151,11 @@ export default function JobSuccessPage() {
       <div className="mt-6">
         <button
           onClick={goNext}
-          disabled={!canContinue}
+          disabled={!canContinue || saving}
           className={`w-full rounded-xl py-3 text-sm font-medium transition
-            ${canContinue ? 'bg-black text-white hover:bg-black/90' : 'text-gray-500 bg-gray-100 cursor-not-allowed'}`}
+            ${canContinue && !saving ? 'bg-black text-white hover:bg-black/90' : 'text-gray-500 bg-gray-100 cursor-not-allowed'}`}
         >
-          Continue
+          {saving ? 'Saving…' : 'Continue'}
         </button>
       </div>
     </div>

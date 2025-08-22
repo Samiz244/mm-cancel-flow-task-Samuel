@@ -1,97 +1,143 @@
+// src/app/page.tsx
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from "next/navigation"; // 👈 Added this import for navigation
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-// Mock user data for UI display
-const mockUser = {
-  email: 'user@example.com',
-  id: '1'
+type Sub = {
+  status: 'active' | 'pending_cancellation' | 'cancelled';
+  monthlyPriceCents: number;
+  createdAt: string;       // ISO
+  nextBillingDate: string; // ISO
 };
 
-// Mock subscription data for UI display
-const mockSubscriptionData = {
-  status: 'active',
-  isTrialSubscription: false,
-  cancelAtPeriodEnd: false,
-  currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-  monthlyPrice: 25,
-  isUCStudent: false,
-  hasManagedAccess: false,
-  managedOrganization: null,
-  downsellAccepted: false
-};
+type ApiOk = { ok: true; email: string; subscription: Sub | null };
+type ApiErr = { ok: false; error: string };
+type ApiData = ApiOk | ApiErr;
 
 export default function ProfilePage() {
+  const router = useRouter();
+  const sp = useSearchParams();
 
-  const router = useRouter(); // 👈 Added this so we can use router.push
-  const [loading] = useState(false);
+  // You can pass ?email=user1@example.com in the URL,
+  // otherwise it will use user1@example.com by default (seed user).
+  const EMAIL_TO_USE = useMemo(() => {
+    const q = (sp.get('email') || '').trim();
+    return q || 'sammi@gmail.com';
+  }, [sp]);
+
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState<string>('');
+  const [sub, setSub] = useState<Sub | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   const [isSigningOut, setIsSigningOut] = useState(false);
-  
-  // New state for settings toggle
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/profile?email=${encodeURIComponent(EMAIL_TO_USE)}`, {
+          cache: 'no-store',
+        });
+        const json: ApiData = await res.json();
+        if (json.ok) {
+          setEmail(json.email);
+          setSub(json.subscription);
+        } else {
+          setError(json.error || 'Failed to load profile');
+        }
+      } catch (e: any) {
+        setError(String(e?.message ?? e));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [EMAIL_TO_USE]);
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
-    // Simulate sign out delay
-    setTimeout(() => {
-      console.log('User signed out');
-      setIsSigningOut(false);
-    }, 1000);
+    setTimeout(() => setIsSigningOut(false), 800);
   };
 
   const handleClose = () => {
     console.log('Navigate to jobs');
   };
 
+  /**
+   * Start cancellation:
+   *  - Calls /api/init (your actual API route)
+   *  - API should create a row in `cancellations` and return { ok: true, variant: 'A'|'B' }
+   *  - Then navigate to the next step. (job-status page here; include variant so downstream can branch)
+   */
+  const handleStartCancel = async () => {
+    try {
+      const res = await fetch('/api/init', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: EMAIL_TO_USE }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || 'Failed to start cancellation');
+      }
+
+      const variant = String(json.variant || 'A');
+      // Pass the email as well so the flow can keep using the same user
+      router.push(`/cancel/job-status?variant=${encodeURIComponent(variant)}&email=${encodeURIComponent(EMAIL_TO_USE)}`);
+    } catch (e: any) {
+      alert(e?.message ?? String(e));
+    }
+  };
+
+  const fmtDate = (iso?: string) =>
+    iso
+      ? new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+      : '';
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 py-12">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="bg-white shadow rounded-lg overflow-hidden">
-            {/* Header skeleton */}
             <div className="px-6 py-8 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-indigo-50">
               <div className="flex items-center justify-between">
-                <div className="h-8 w-40 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse"></div>
+                <div className="h-8 w-40 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse" />
                 <div className="flex space-x-3">
-                  <div className="h-10 w-32 bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg animate-pulse"></div>
-                  <div className="h-10 w-24 bg-gradient-to-r from-gray-200 to-gray-300 rounded-md animate-pulse"></div>
+                  <div className="h-10 w-32 bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg animate-pulse" />
+                  <div className="h-10 w-24 bg-gradient-to-r from-gray-200 to-gray-300 rounded-md animate-pulse" />
                 </div>
               </div>
             </div>
-            
-            {/* Profile Info skeleton */}
             <div className="px-6 py-6 border-b border-gray-200">
-              <div className="h-6 w-56 bg-gradient-to-r from-gray-200 to-gray-300 rounded mb-4 animate-pulse"></div>
+              <div className="h-6 w-56 bg-gradient-to-r from-gray-200 to-gray-300 rounded mb-4 animate-pulse" />
               <div className="space-y-6">
                 <div>
-                  <div className="h-4 w-20 bg-gradient-to-r from-gray-200 to-gray-300 rounded mb-2 animate-pulse"></div>
-                  <div className="h-5 w-48 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse"></div>
+                  <div className="h-4 w-20 bg-gradient-to-r from-gray-200 to-gray-300 rounded mb-2 animate-pulse" />
+                  <div className="h-5 w-48 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse" />
                 </div>
                 <div>
-                  <div className="h-4 w-36 bg-gradient-to-r from-gray-200 to-gray-300 rounded mb-2 animate-pulse"></div>
-                  <div className="h-5 w-20 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse"></div>
+                  <div className="h-4 w-36 bg-gradient-to-r from-gray-200 to-gray-300 rounded mb-2 animate-pulse" />
+                  <div className="h-5 w-20 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse" />
                 </div>
                 <div>
-                  <div className="h-4 w-48 bg-gradient-to-r from-gray-200 to-gray-300 rounded mb-2 animate-pulse"></div>
-                  <div className="h-5 w-32 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse"></div>
+                  <div className="h-4 w-48 bg-gradient-to-r from-gray-200 to-gray-300 rounded mb-2 animate-pulse" />
+                  <div className="h-5 w-32 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse" />
                 </div>
               </div>
             </div>
-            
-            {/* Support skeleton */}
             <div className="px-6 py-6 border-b border-gray-200">
-              <div className="h-6 w-24 bg-gradient-to-r from-gray-200 to-gray-300 rounded mb-4 animate-pulse"></div>
-              <div className="h-12 w-full bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg animate-pulse"></div>
+              <div className="h-6 w-24 bg-gradient-to-r from-gray-200 to-gray-300 rounded mb-4 animate-pulse" />
+              <div className="h-12 w-full bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg animate-pulse" />
             </div>
-            
-            {/* Subscription Management skeleton */}
             <div className="px-6 py-6">
-              <div className="h-6 w-56 bg-gradient-to-r from-gray-200 to-gray-300 rounded mb-4 animate-pulse"></div>
+              <div className="h-6 w-56 bg-gradient-to-r from-gray-200 to-gray-300 rounded mb-4 animate-pulse" />
               <div className="space-y-4">
-                <div className="h-12 w-full bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg animate-pulse"></div>
-                <div className="h-12 w-full bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg animate-pulse delay-75"></div>
-                <div className="h-12 w-full bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg animate-pulse delay-150"></div>
+                <div className="h-12 w-full bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg animate-pulse" />
+                <div className="h-12 w-full bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg animate-pulse delay-75" />
+                <div className="h-12 w-full bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg animate-pulse delay-150" />
               </div>
             </div>
           </div>
@@ -99,6 +145,20 @@ export default function ProfilePage() {
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-12">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white shadow rounded-lg p-6">
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isActive = sub?.status === 'active';
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 relative">
@@ -133,15 +193,16 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          
+
           {/* Profile Info */}
           <div className="px-6 py-6 border-b border-gray-200">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Account Information</h2>
             <div className="space-y-3">
               <div>
                 <p className="text-sm font-medium text-gray-500">Email</p>
-                <p className="mt-1 text-md text-gray-900">{mockUser.email}</p>
+                <p className="mt-1 text-md text-gray-900">{email}</p>
               </div>
+
               <div className="pt-2 space-y-3">
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                   <div className="flex items-center space-x-3">
@@ -153,15 +214,20 @@ export default function ProfilePage() {
                     <p className="text-sm font-medium text-gray-900">Subscription status</p>
                   </div>
                   <div className="flex items-center space-x-2">
-                    {mockSubscriptionData.status === 'active' && !mockSubscriptionData.isTrialSubscription && !mockSubscriptionData.cancelAtPeriodEnd && (
+                    {isActive && (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-green-50 text-green-700 border border-green-200">
                         Active
+                      </span>
+                    )}
+                    {!isActive && sub && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-gray-100 text-gray-700 border border-gray-200 capitalize">
+                        {sub.status.replace('_', ' ')}
                       </span>
                     )}
                   </div>
                 </div>
 
-                {mockSubscriptionData.status === 'active' && !mockSubscriptionData.isTrialSubscription && !mockSubscriptionData.cancelAtPeriodEnd && (
+                {sub && (
                   <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div className="flex items-center space-x-3">
                       <div className="flex-shrink-0">
@@ -172,23 +238,18 @@ export default function ProfilePage() {
                       <p className="text-sm font-medium text-gray-900">Next payment</p>
                     </div>
                     <p className="text-sm font-medium text-gray-900">
-                      {mockSubscriptionData.currentPeriodEnd && new Date(mockSubscriptionData.currentPeriodEnd).toLocaleDateString('en-US', {
-                        month: 'long',
-                        day: 'numeric'
-                      })}
+                      {fmtDate(sub.nextBillingDate)}
                     </p>
                   </div>
                 )}
               </div>
             </div>
           </div>
-          
+
           {/* Support Button */}
           <div className="px-6 py-6 border-b border-gray-200">
             <button
-              onClick={() => {
-                console.log('Support contact clicked');
-              }}
+              onClick={() => console.log('Support contact clicked')}
               title="Send email to support"
               className="inline-flex items-center justify-center w-full px-4 py-3 bg-[#8952fc] text-white rounded-lg hover:bg-[#7b40fc] transition-colors"
             >
@@ -199,13 +260,10 @@ export default function ProfilePage() {
             </button>
           </div>
 
-          {/* Settings Toggle Button */}
+          {/* Settings */}
           <div className="px-6 py-6">
             <button
-              onClick={() => {
-                setShowAdvancedSettings(!showAdvancedSettings);
-                console.log('Settings toggled:', !showAdvancedSettings);
-              }}
+              onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
               className="inline-flex items-center justify-center w-full px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm group"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -213,57 +271,63 @@ export default function ProfilePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               <span className="text-sm font-medium">Manage Subscription</span>
-              <svg 
+              <svg
                 className={`w-4 h-4 ml-2 transition-transform duration-200 ${showAdvancedSettings ? 'rotate-180' : ''}`}
-                fill="none" 
-                viewBox="0 0 24 24" 
+                fill="none"
+                viewBox="0 0 24 24"
                 stroke="currentColor"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
 
-            {/* Collapsible Settings Content */}
-            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${showAdvancedSettings ? 'max-h-[800px] opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
+            <div
+              className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                showAdvancedSettings ? 'max-h-[800px] opacity-100 mt-4' : 'max-h-0 opacity-0'
+              }`}
+            >
               <div className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div>
-                  <div className="space-y-3">
-                    <button
-                      onClick={() => {
-                        console.log('Update card clicked');
-                      }}
-                      className="inline-flex items-center justify-center w-full px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm"
+                <div className="space-y-3">
+                  <button className="inline-flex items-center justify-center w-full px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                    <span className="text-sm font-medium">Update payment method</span>
+                  </button>
+
+                  <button className="inline-flex items-center justify-center w-full px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <span className="text-sm font-medium">View billing history</span>
+                  </button>
+
+                  {/* Start cancellation */}
+                  <button
+                    onClick={handleStartCancel}
+                    className="inline-flex items-center justify-center w-full px-4 py-3 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all duration-200 shadow-sm group"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                      </svg>
-                      <span className="text-sm font-medium">Update payment method</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        console.log('Invoice history clicked');
-                      }}
-                      className="inline-flex items-center justify-center w-full px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-sm"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                      <span className="text-sm font-medium">View billing history</span>
-                    </button>
-                    <button
-  onClick={() => router.push("/cancel/job-status")} // ✅ navigate to job-status page
-                      className="inline-flex items-center justify-center w-full px-4 py-3 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all duration-200 shadow-sm group"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                      <span className="text-sm font-medium">Cancel Migrate Mate</span>
-                    </button>
-                  </div>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
+                    </svg>
+                    <span className="text-sm font-medium">Cancel Migrate Mate</span>
+                  </button>
                 </div>
               </div>
             </div>
           </div>
+          {/* /Settings */}
         </div>
       </div>
     </div>
