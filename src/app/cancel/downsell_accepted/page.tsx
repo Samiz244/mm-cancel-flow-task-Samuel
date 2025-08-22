@@ -1,35 +1,82 @@
-// src/app/cancel/downsell_accepted/page.tsx
-export default function DownsellAcceptedPage() {
-  return (
-    <div className="flex flex-col items-start space-y-4">
-      {/* TEXT CONTENT */}
-      <h1 className="text-[22px] sm:text-[26px] font-extrabold text-gray-900">
-        Great choice, mate!
-      </h1>
+// src/app/cancel/still-looking/downsell_accepted/page.tsx
+'use client';
 
-      <p className="text-[14px] sm:text-[16px] text-gray-800 font-semibold">
-        You’re still on the path to your dream role.{" "}
-        <span className="text-[#7b40fc]">Let’s make it happen together!</span>
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+
+const DEFAULT_EMAIL = 'user1@example.com';
+
+function fmtUSDfromCents(cents: unknown) {
+  const n = typeof cents === 'number' ? cents : Number(cents);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n / 100);
+}
+
+export default function DownsellAcceptedPage() {
+  const sp = useSearchParams();
+  const email = useMemo(() => (sp.get('email') || DEFAULT_EMAIL).trim(), [sp]);
+
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [label, setLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      setErr(null);
+      setLabel(null);
+      try {
+        if (!email) throw new Error('Missing email');
+        const res = await fetch(`/api/profile?email=${encodeURIComponent(email)}`, { cache: 'no-store' });
+        const json = await res.json();
+
+        if (!res.ok || json?.ok === false) {
+          throw new Error(json?.error || 'Failed to load profile');
+        }
+
+        // Expecting: json.subscription.monthlyPriceCents (int4 cents)
+        const raw = json?.subscription?.monthlyPriceCents;
+        const planCents = Number(raw);
+        if (!Number.isFinite(planCents) || planCents <= 0) {
+          throw new Error('No active subscription or invalid price.');
+        }
+
+        // $10 off but only if plan is >= $25 (2500 cents)
+        const discounted = planCents >= 2500 ? planCents - 1000 : planCents;
+        const formatted = fmtUSDfromCents(discounted);
+        if (!formatted) throw new Error('Could not format price.');
+
+        if (alive) setLabel(formatted);
+      } catch (e: any) {
+        if (alive) setErr(e?.message ?? String(e));
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [email]);
+
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-bold">You’re all set — discount applied</h1>
+      <p className="mt-2 text-sm text-gray-600">
+        We’ve applied your $10/mo discount. You’ll see the new price on your next billing date.
       </p>
 
-      <div className="space-y-1 text-[12px] sm:text-sm text-gray-600">
-        <p>
-          You’ve got <span className="font-medium">XX days</span> left on your current plan.
-        </p>
-        <p>
-          Starting from <span className="font-medium">XX date</span>, your monthly payment will be{" "}
-          <span className="font-semibold text-gray-900">$15.00</span>{" "}
-          <span className="text-gray-400">($29 plan would be $19.00)</span>.
-        </p>
-        <p className="italic text-gray-500">You can cancel anytime before then.</p>
+      <div className="mt-4 rounded-xl border bg-purple-50 p-4">
+        {loading ? (
+          <div className="h-5 w-24 mx-auto bg-purple-100 rounded animate-pulse" />
+        ) : err ? (
+          <p className="text-red-600 text-sm">{err}</p>
+        ) : label ? (
+          <p className="text-lg font-semibold text-purple-900">{label}/month</p>
+        ) : (
+          <p className="text-gray-600 text-sm">Couldn’t calculate your price.</p>
+        )}
       </div>
-
-      <button
-        type="button"
-        className="w-full rounded-xl bg-[#8952fc] text-white py-3 text-sm font-semibold shadow-sm hover:bg-[#7b40fc]"
-      >
-        Land your dream role
-      </button>
     </div>
   );
 }

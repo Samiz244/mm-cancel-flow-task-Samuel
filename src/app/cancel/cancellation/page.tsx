@@ -1,37 +1,81 @@
-// src/app/cancel/cancellation/page.tsx
 'use client';
 
-import Link from 'next/link';
+import { useEffect, useState, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 
-export default function CancellationCompletePage() {
+type Sub = {
+  status: 'active' | 'pending_cancellation' | 'cancelled';
+  monthlyPriceCents: number;
+  nextBillingDate: string | null; // coming directly from /api/profile
+};
+
+type ApiOk = { ok: true; email: string; userId: string; subscription: Sub | null };
+type ApiErr = { ok: false; error: string };
+type ApiData = ApiOk | ApiErr;
+
+export default function CancellationPage() {
+  const sp = useSearchParams();
+
+  // grab email from query (?email=...), fallback to demo user
+  const EMAIL = useMemo(() => {
+    const q = (sp.get('email') || '').trim();
+    return q || 'user1@example.com';
+  }, [sp]);
+
+  const [endDateLabel, setEndDateLabel] = useState('—');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`/api/profile?email=${encodeURIComponent(EMAIL)}`, {
+          cache: 'no-store',
+        });
+        const json: ApiData = await res.json();
+        if (!alive) return;
+
+        if ('ok' in json && json.ok && json.subscription?.nextBillingDate) {
+          const nd = new Date(json.subscription.nextBillingDate);
+          if (!Number.isNaN(nd.getTime())) {
+            const label = nd.toLocaleDateString('en-US', {
+              month: 'long',
+              day: 'numeric',
+            });
+            setEndDateLabel(label);
+          } else {
+            setEndDateLabel('—');
+          }
+        } else {
+          setEndDateLabel('—');
+        }
+      } catch (err) {
+        console.error('cancellation page error:', err);
+        if (alive) setEndDateLabel('—');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [EMAIL]);
+
   return (
-    <div className="p-4 sm:p-6 md:p-8">
-      <h1 className="text-[22px] sm:text-[26px] font-extrabold text-gray-900">
-        Sorry to see you go, mate.
-      </h1>
+    <div className="p-6">
+    <h1 className="text-[22px] sm:text-[26px] font-extrabold text-gray-900">
+  Sorry to see you go, mate.
+</h1>
 
-      <p className="mt-3 text-[14px] sm:text-[16px] font-semibold text-gray-900">
-        Thanks for being with us, and you’re always welcome back.
+<p className="mt-3 text-[14px] sm:text-[16px] font-semibold text-gray-900">
+  Thanks for being with us, and you’re always welcome back.
+</p> <br></br>
+      <p>
+        Your subscription is set to end on{' '}
+        <span className="font-medium">{loading ? '…' : endDateLabel}</span>.
       </p>
-
-      <div className="mt-4 space-y-2 text-[12px] sm:text-sm text-gray-600">
-        <p>
-          Your subscription is set to end on <span className="font-medium">XX date</span>.  
-          You’ll still have full access until then. No further charges after that.
-        </p>
-        <p>
-          Changed your mind? You can reactivate anytime before your end date.
-        </p>
-      </div>
-
-      <div className="mt-6">
-        <Link
-          href="/"
-          className="block w-full rounded-xl bg-[#8952fc] text-white py-3 text-sm font-semibold text-center shadow-sm hover:bg-[#7b40fc]"
-        >
-          Back to Jobs
-        </Link>
-      </div>
+      <p>You’ll still have full access until then. No further charges after that.</p>
     </div>
   );
 }

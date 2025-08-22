@@ -2,7 +2,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 type ReasonKey =
@@ -32,6 +31,17 @@ function sanitize(input: string) {
   return escapeHtml(removeDangerous(stripTags(normalized)));
 }
 
+// Helper: resolve email from query/localStorage/default seed
+function resolveEmail(sp: URLSearchParams): string {
+  const fromQuery = (sp.get('email') || '').trim().toLowerCase();
+  if (fromQuery) return fromQuery;
+  if (typeof window !== 'undefined') {
+    const ls = (localStorage.getItem('mm_active_email') || '').trim().toLowerCase();
+    if (ls) return ls;
+  }
+  return 'user1@example.com'; // fallback to seed user
+}
+
 export default function ReasonsPage() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -41,6 +51,8 @@ export default function ReasonsPage() {
   const [reason, setReason] = useState<ReasonKey | null>(null);
   const [text, setText] = useState('');
   const [csrf, setCsrf] = useState<string>('');
+  const [submitting, setSubmitting] = useState(false);
+  const [acceptingPromo, setAcceptingPromo] = useState(false);
 
   useEffect(() => {
     const key = 'mm_csrf_token';
@@ -65,27 +77,88 @@ export default function ReasonsPage() {
   const hasAlnum = /[A-Za-z0-9]/.test(trimmed);
 
   let textValid = true;
-
-if (reason === 'too_expensive') {
-  const value = Number(trimmed);
-  textValid = Number.isFinite(value) && value > 0;
-} else if (requiresText) {
-  textValid = trimmed.length >= 25 && hasAlnum;
-}
+  if (reason === 'too_expensive') {
+    const value = Number(trimmed);
+    textValid = Number.isFinite(value) && value > 0;
+  } else if (requiresText) {
+    textValid = trimmed.length >= 25 && hasAlnum;
+  }
   const formValid = !!reason && textValid;
 
-  const handleComplete = () => {
-    if (!formValid) return;
-    const safeText = sanitize(trimmed);
-    const params = new URLSearchParams({
-      r: reason ?? '',
-      t: safeText,
-      csrf,
-    });
-    router.push(`/cancel/cancellation?${params.toString()}`);
+  // ✅ Promo flow still includes email
+  const handleAcceptPromo = async () => {
+    const email = resolveEmail(sp as any);
+    try {
+      setAcceptingPromo(true);
+      const res = await fetch('/api/accept', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.ok === false) {
+        console.warn(json?.error || 'Could not apply discount.');
+      }
+    } catch (e: any) {
+      console.warn(e?.message || e);
+    } finally {
+      setAcceptingPromo(false);
+    }
+    router.push(`/cancel/downsell_accepted?email=${encodeURIComponent(email)}`);
   };
 
-  // NOTE: layout provides header, progress (Step 3), and right image
+  const handleComplete = async () => {
+    if (!formValid || !reason || submitting) return;
+
+    try {
+      setSubmitting(true);
+
+      const safeText = sanitize(trimmed);
+      const email = resolveEmail(sp as any);
+
+      // Build "details" to persist with reason (optional)
+      let details: string | undefined;
+      if (reason === 'too_expensive') {
+        details = trimmed;
+      } else if (requiresText) {
+        details = safeText;
+      }
+
+      const res = await fetch('/api/reason', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          reason,
+          details: details ?? null,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json?.ok) {
+        console.error(json);
+        alert(json?.error || 'Failed to record reason');
+        setSubmitting(false);
+        return;
+      }
+
+      // ✅ include email when routing to cancellation
+      const params = new URLSearchParams({
+        r: reason ?? '',
+        t: details ? String(details) : '',
+        csrf,
+        email, // 👈 new addition
+      });
+
+      router.push(`/cancel/cancellation?${params.toString()}`);
+    } catch (e: any) {
+      console.error(e);
+      alert(String(e?.message ?? e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div>
       <h1 className="text-[22px] sm:text-[26px] font-extrabold leading-snug text-gray-900">
@@ -126,14 +199,14 @@ if (reason === 'too_expensive') {
             What would be the maximum you’d be willing to pay?
           </label>
           <input
-  type="number"
-  min={1}
-  step={1}
-  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
-  value={text}
-  onChange={(e) => setText(e.target.value)}
-  placeholder="Enter amount"
-/>
+            type="number"
+            min={1}
+            step={1}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-200"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Enter amount"
+          />
           {!textValid && (
             <p className="mt-1 text-[11px] text-red-500">
               Please enter a valid positive number.
@@ -225,25 +298,27 @@ if (reason === 'too_expensive') {
       {/* CTA row */}
       <div className="mt-6 space-y-3">
         {showPromo && (
-          <Link
-            href="/cancel/downsell_accepted"
-            className="block w-full rounded-xl bg-emerald-500 text-white py-3 text-sm font-semibold text-center shadow-sm hover:brightness-95"
+          <button
+            type="button"
+            onClick={handleAcceptPromo}
+            disabled={acceptingPromo}
+            className="block w-full rounded-xl bg-emerald-500 text-white py-3 text-sm font-semibold text-center shadow-sm hover:brightness-95 disabled:opacity-50"
           >
-            Get $10 off | $15.00 / $19.00
-          </Link>
+            {acceptingPromo ? 'Applying…' : 'Get $10 off'}
+          </button>
         )}
 
         <button
           type="button"
-          disabled={!formValid}
+          disabled={!formValid || submitting}
           className={`w-full rounded-xl py-3 text-sm font-semibold text-center ${
-            formValid
+            formValid && !submitting
               ? 'bg-gray-900 text-white hover:bg-black'
               : 'bg-gray-100 text-gray-500 cursor-not-allowed'
           }`}
           onClick={handleComplete}
         >
-          Complete cancellation
+          {submitting ? 'Saving…' : 'Complete cancellation'}
         </button>
       </div>
     </div>
