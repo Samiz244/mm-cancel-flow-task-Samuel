@@ -41,8 +41,7 @@ lib/
 seed.sql
 .env.local
 README.md
-</details>
-```
+
 
 
 ## 🗄️ Database Schema
@@ -162,3 +161,4 @@ psql < seed.sql
 
 # 5. Start dev server
 npm run dev
+</details>
