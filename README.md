@@ -13,30 +13,36 @@ It collects data on whether users have found jobs, offers a downsell ($10 off), 
 
 ---
 
-## 📂 File Structure
+<details>
+  <summary><strong>File Structure</strong></summary>
 
-src/app/
-├── cancel/
-│   ├── cancellation/          # Initial cancellation page
-│   ├── job-status/            # “Have you found a job?” page
-│   ├── job-success/           # Flow when user has found a job
-│   ├── still-looking/         # Flow when user is still looking
-│   │   └── downsell/          # Downsell offer
-│   ├── downsell_accepted/     # Confirmation page for downsell
-│   ├── improvement/           # Feedback page
-│   ├── visa/                  # Immigration lawyer + visa info
-│   └── employed-cancellation/ # Final confirmation
-│
-└── api/
-├── profile/               # Fetch user + subscription profile
-├── cancel/                # Handle subscription cancellation
-├── accept/                # Accept downsell
-├── init/                  # Initialize cancellation session
-├── user_status/           # Update user status (employed, visa, lawyer)
-└── migrate_mate_status/   # Update migrate mate stats
-
-
----
+```text
+src/
+└── app/
+    ├── cancel/
+    │   ├── cancellation/
+    │   ├── job-status/
+    │   ├── job-success/
+    │   ├── still-looking/
+    │   ├── downsell/
+    │   ├── downsell_accepted/
+    │   ├── improvement/
+    │   ├── visa/
+    │   └── employed-cancellation/
+    └── api/
+        ├── profile/
+        ├── cancel/
+        ├── accept/
+        ├── init/
+        ├── user_status/
+        └── migrate_mate_status/
+lib/
+└── supabase.ts
+seed.sql
+.env.local
+README.md
+</details>
+```
 
 ## 🗄️ Database Schema
 
@@ -133,3 +139,26 @@ flowchart TD
 
   F --> G[Visa Page -> Update user_status (lawyer + visa type)]
   G --> H[Final Employed Cancellation Page]
+
+
+⚙️ How to Run it Locally
+
+# 1. Clone repository
+git clone https://github.com/your-username/cancellation-flow.git
+cd cancellation-flow
+
+# 2. Install dependencies
+npm install
+
+# 3. Create environment file
+cat > .env.local <<EOL
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+EOL
+
+# 4. Run database migrations + seed
+psql < seed.sql
+
+# 5. Start dev server
+npm run dev
